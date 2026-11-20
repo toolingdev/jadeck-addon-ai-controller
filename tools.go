@@ -10,10 +10,10 @@ import (
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-	"github.com/toolingdev/ptz-controller/sdk/addon"
+	"github.com/toolingdev/jadeck/sdk/addon"
 )
 
-// controller is the MCP connection to the PTZ controller, with the
+// controller is the MCP connection to jadeck, with the
 // token (and so the permissions) this connection was given.
 
 type tool struct {

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/toolingdev/ptz-controller/sdk/addon/addontest"
+	"github.com/toolingdev/jadeck/sdk/addon/addontest"
 )
 
 // fakeCtl is the controller: one read tool, one tool that changes things.

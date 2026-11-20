@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/toolingdev/ptz-controller/sdk/addon"
+	"github.com/toolingdev/jadeck/sdk/addon"
 )
 
 // A conversation per screen ("session"). One turn: the person's message,

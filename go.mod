@@ -1,11 +1,11 @@
-module github.com/toolingdev/ptz-addon-ai-controller
+module github.com/toolingdev/jadeck-addon-ai-controller
 
 go 1.27.4
 
 require (
 	github.com/anthropics/anthropic-sdk-go/v2 v2.13.0
 	github.com/modelcontextprotocol/go-sdk v1.8.0
-	github.com/toolingdev/ptz-controller/sdk/addon v0.1.0
+	github.com/toolingdev/jadeck/sdk/addon v0.2.0
 )
 
 require (

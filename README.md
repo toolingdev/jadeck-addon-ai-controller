@@ -1,4 +1,4 @@
-# AI controller — PTZ controller add-on
+# AI controller — jadeck add-on
 
 Talk to the booth in plain words: "go to the pulpit shot", "next slide",
 "in 5 minutes cut to camera 2". The assistant works through the
@@ -30,7 +30,7 @@ pick. Use Ollama to keep everything on your network.
 ## Build
 
 ```bash
-go run github.com/toolingdev/ptz-controller/sdk/addon/cmd/ptz-addon build
+go run github.com/toolingdev/jadeck/sdk/addon/cmd/ptz-addon build
 ```
 
 Try a local build: Settings → Add-ons → Developer → Load a folder (this

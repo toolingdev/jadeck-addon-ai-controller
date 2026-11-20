@@ -1,4 +1,4 @@
-// AI controller: a PTZ controller add-on. People talk to the booth in
+// AI controller: a jadeck add-on. People talk to the booth in
 // plain words ("go to the pulpit shot, and in 5 minutes cut to camera
 // 2") and an AI service of their choice runs it through the controller's
 // own agent tools, asking first unless told not to.
@@ -7,7 +7,7 @@ package main
 import (
 	"encoding/json"
 
-	"github.com/toolingdev/ptz-controller/sdk/addon"
+	"github.com/toolingdev/jadeck/sdk/addon"
 )
 
 // Version is set by the release build.
@@ -28,8 +28,8 @@ var sampleChat = map[string]any{
 func spec() addon.Spec {
 	return addon.Spec{
 		Manifest: addon.Manifest{
-			ID: "ai-controller", Name: "AI controller", Version: Version, Publisher: "PTZ Controller",
-			APIVersion: addon.APIVersion, Repo: "toolingdev/ptz-addon-ai-controller", Controller: true,
+			ID: "ai-controller", Name: "AI controller", Version: Version, Publisher: "jadeck",
+			APIVersion: addon.APIVersion, Repo: "toolingdev/jadeck-addon-ai-controller", Controller: true,
 			Description: "Talk to the booth: “cut to camera 2 in 5 minutes”. Your AI service, your key.",
 			Reaches:     "The AI service you pick (with your key), and this controller, only with the permissions you tick",
 			ConnectionTypes: []addon.ConnectionType{{
