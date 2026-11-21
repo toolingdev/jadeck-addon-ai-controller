@@ -2,3 +2,5 @@ bin/
 dist/
 addon.json
 ptz-addon-*
+/jadeck-addon-ai-controller
+/jadeck-addon-ai-controller.exe

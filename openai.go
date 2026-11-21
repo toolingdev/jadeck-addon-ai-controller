@@ -90,7 +90,10 @@ func (o *openaiCompat) next(ctx context.Context, system string, tools []tool) (s
 		body["tools"] = ts
 	}
 	b, _ := json.Marshal(body)
-	req, _ := http.NewRequestWithContext(ctx, "POST", o.base+"/chat/completions", bytes.NewReader(b))
+	req, err := http.NewRequestWithContext(ctx, "POST", o.base+"/chat/completions", bytes.NewReader(b))
+	if err != nil {
+		return "", nil, fmt.Errorf("%s: bad service address: %w", o.label, err)
+	}
 	req.Header.Set("Content-Type", "application/json")
 	if o.key != "" {
 		req.Header.Set("Authorization", "Bearer "+o.key)

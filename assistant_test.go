@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/toolingdev/jadeck/sdk/addon/addontest"
@@ -184,4 +185,39 @@ func TestClaudeThroughSDK(t *testing.T) {
 
 func TestManifest(t *testing.T) {
 	addontest.Start(t, spec())
+}
+
+// A screen polling the state while a turn runs, and a double-tapped
+// message, must not race (run with -race).
+func TestConcurrentTurnsAndState(t *testing.T) {
+	sc := &script{}
+	c, _ := newTest(false, sc)
+	var wg sync.WaitGroup
+	for i := 0; i < 4; i++ {
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			c.AddonAction(context.Background(), "chat", json.RawMessage(`{"session":"s","message":"hi"}`))
+		}()
+		go func() {
+			defer wg.Done()
+			st, _ := c.AddonState(context.Background())
+			json.Marshal(st)
+		}()
+	}
+	wg.Wait()
+	st, _ := c.AddonState(context.Background())
+	if n := len(st["sessions"].(map[string]any)["s"].(map[string]any)["lines"].([]line)); n != 8 {
+		t.Fatalf("want 4 questions and 4 answers, got %d lines", n)
+	}
+}
+
+func TestBadServiceAddress(t *testing.T) {
+	o, err := newOpenAI(config{Provider: "openai-compatible", BaseURL: "http://bad host/v1", Model: "m"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := o.next(context.Background(), "", nil); err == nil {
+		t.Fatal("bad address accepted")
+	}
 }

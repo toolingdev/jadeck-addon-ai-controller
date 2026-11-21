@@ -58,11 +58,28 @@ type line struct {
 	At      string `json:"at"`
 }
 
+// session is one conversation. Its turn lock lets one action at a time
+// change it (the provider's history isn't safe to share); lines and
+// pending are written under conn.mu too, so AddonState can read them
+// while a turn runs.
 type session struct {
+	turn    sync.Mutex
 	p       provider
 	pending []call
 	lines   []line
 	last    time.Time
+}
+
+func (c *conn) say(s *session, l line) {
+	c.mu.Lock()
+	s.lines = append(s.lines, l)
+	c.mu.Unlock()
+}
+
+func (c *conn) setPending(s *session, calls []call) {
+	c.mu.Lock()
+	s.pending = calls
+	c.mu.Unlock()
 }
 
 // ctlAPI is the controller as the assistant uses it (a fake in tests).
@@ -196,7 +213,7 @@ func (c *conn) run(ctx context.Context, s *session) error {
 			return err
 		}
 		if strings.TrimSpace(text) != "" {
-			s.lines = append(s.lines, line{Role: "assistant", Text: strings.TrimSpace(text), At: time.Now().Format(time.RFC3339)})
+			c.say(s, line{Role: "assistant", Text: strings.TrimSpace(text), At: time.Now().Format(time.RFC3339)})
 		}
 		if len(calls) == 0 {
 			return nil
@@ -210,13 +227,13 @@ func (c *conn) run(ctx context.Context, s *session) error {
 			}
 		}
 		if needs && c.askFirst() {
-			s.pending = calls
-			s.lines = append(s.lines, line{Role: "assistant", Text: "I'll do this:", Pending: calls, At: time.Now().Format(time.RFC3339)})
+			c.setPending(s, calls)
+			c.say(s, line{Role: "assistant", Text: "I'll do this:", Pending: calls, At: time.Now().Format(time.RFC3339)})
 			return nil
 		}
 		s.p.addResults(c.execute(ctx, s, calls, byName))
 	}
-	s.lines = append(s.lines, line{Role: "error", Text: "Stopped after 10 steps — ask again more simply?"})
+	c.say(s, line{Role: "error", Text: "Stopped after 10 steps — ask again more simply?"})
 	return nil
 }
 
@@ -230,7 +247,7 @@ func (c *conn) execute(ctx context.Context, s *session, calls []call, byName map
 			if isErr {
 				mark = "✗ "
 			}
-			s.lines = append(s.lines, line{Role: "action", Text: mark + cl.Label + map[bool]string{true: " — " + firstLine(text), false: ""}[isErr],
+			c.say(s, line{Role: "action", Text: mark + cl.Label + map[bool]string{true: " — " + firstLine(text), false: ""}[isErr],
 				At: time.Now().Format(time.RFC3339)})
 		}
 	}
@@ -248,7 +265,9 @@ func firstLine(s string) string {
 }
 
 func (c *conn) reply(s *session, from int) map[string]any {
-	return map[string]any{"lines": s.lines[from:], "pending": len(s.pending) > 0}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return map[string]any{"lines": append([]line{}, s.lines[from:]...), "pending": len(s.pending) > 0}
 }
 
 // AddonAction: chat, approve, reject, reset.
@@ -257,8 +276,10 @@ func (c *conn) AddonAction(ctx context.Context, name string, params json.RawMess
 		Session string `json:"session"`
 		Message string `json:"message"`
 	}
-	if len(params) > 0 {
-		json.Unmarshal(params, &p)
+	if len(params) > 0 && string(params) != "null" {
+		if err := json.Unmarshal(params, &p); err != nil {
+			return nil, fmt.Errorf("bad parameters for %s: %v", name, err)
+		}
 	}
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Minute)
 	defer cancel()
@@ -266,9 +287,13 @@ func (c *conn) AddonAction(ctx context.Context, name string, params json.RawMess
 	if err != nil {
 		return nil, err
 	}
+	if name == "chat" || name == "approve" || name == "reject" {
+		s.turn.Lock() // e.g. a double tap: the second waits for the first
+		defer s.turn.Unlock()
+	}
 	from := len(s.lines)
 	fail := func(err error) (any, error) {
-		s.lines = append(s.lines, line{Role: "error", Text: err.Error(), At: time.Now().Format(time.RFC3339)})
+		c.say(s, line{Role: "error", Text: err.Error(), At: time.Now().Format(time.RFC3339)})
 		return c.reply(s, from), nil
 	}
 	switch name {
@@ -280,9 +305,9 @@ func (c *conn) AddonAction(ctx context.Context, name string, params json.RawMess
 		if len(s.pending) > 0 {
 			// a new message instead of Do it / Cancel declines the waiting actions
 			s.p.addResults(declined(s.pending))
-			s.pending = nil
+			c.setPending(s, nil)
 		}
-		s.lines = append(s.lines, line{Role: "user", Text: msg, At: time.Now().Format(time.RFC3339)})
+		c.say(s, line{Role: "user", Text: msg, At: time.Now().Format(time.RFC3339)})
 		s.p.addUser(msg)
 		if err := c.run(ctx, s); err != nil {
 			return fail(err)
@@ -297,7 +322,7 @@ func (c *conn) AddonAction(ctx context.Context, name string, params json.RawMess
 			byName[t.Name] = t
 		}
 		calls := s.pending
-		s.pending = nil
+		c.setPending(s, nil)
 		s.p.addResults(c.execute(ctx, s, calls, byName))
 		if err := c.run(ctx, s); err != nil {
 			return fail(err)
@@ -307,8 +332,8 @@ func (c *conn) AddonAction(ctx context.Context, name string, params json.RawMess
 			return nil, fmt.Errorf("nothing is waiting")
 		}
 		s.p.addResults(declined(s.pending))
-		s.pending = nil
-		s.lines = append(s.lines, line{Role: "action", Text: "– Cancelled, nothing was done", At: time.Now().Format(time.RFC3339)})
+		c.setPending(s, nil)
+		c.say(s, line{Role: "action", Text: "– Cancelled, nothing was done", At: time.Now().Format(time.RFC3339)})
 	case "test":
 		tools, err := c.ctl.Tools(ctx)
 		if err != nil {
@@ -352,7 +377,7 @@ func (c *conn) AddonState(ctx context.Context) (map[string]any, error) {
 	c.mu.Lock()
 	convs := map[string]any{}
 	for id, s := range c.sess {
-		convs[id] = map[string]any{"lines": s.lines, "pending": len(s.pending) > 0}
+		convs[id] = map[string]any{"lines": append([]line{}, s.lines...), "pending": len(s.pending) > 0}
 	}
 	c.mu.Unlock()
 	st["sessions"] = convs

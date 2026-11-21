@@ -5,7 +5,7 @@ go 1.27.4
 require (
 	github.com/anthropics/anthropic-sdk-go/v2 v2.13.0
 	github.com/modelcontextprotocol/go-sdk v1.8.0
-	github.com/toolingdev/jadeck/sdk/addon v0.2.0
+	github.com/toolingdev/jadeck/sdk/addon v0.3.0
 )
 
 require (
